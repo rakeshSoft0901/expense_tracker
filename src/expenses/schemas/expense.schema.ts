@@ -60,6 +60,9 @@ export class Expense {
 
   @Prop({ type: Date, default: null })
   deletedAt: Date | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'RecurringSeries', default: null, index: true })
+  recurringSeriesId: Types.ObjectId | null;
 }
 
 export const ExpenseSchema = SchemaFactory.createForClass(Expense);
