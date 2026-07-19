@@ -37,11 +37,11 @@ export class Expense {
   @Prop({ required: true, trim: true })
   title: string;
 
-  @Prop({ default: 'Uncategorized', trim: true })
-  category: string;
+  @Prop({ type: Types.ObjectId, ref: 'Category', default: null })
+  categoryId: Types.ObjectId | null;
 
-  @Prop({ trim: true })
-  subCategory?: string;
+  @Prop({ type: Types.ObjectId, default: null })
+  subCategoryId: Types.ObjectId | null;
 
   @Prop({ type: Types.ObjectId, ref: 'PaymentMethod' })
   paymentMethodId?: Types.ObjectId;
@@ -67,3 +67,4 @@ export const ExpenseSchema = SchemaFactory.createForClass(Expense);
 ExpenseSchema.index({ userId: 1, date: -1 });
 ExpenseSchema.index({ userId: 1, isDeleted: 1 });
 ExpenseSchema.index({ userId: 1, tags: 1 });
+ExpenseSchema.index({ userId: 1, categoryId: 1 });

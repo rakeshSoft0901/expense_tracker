@@ -5,32 +5,75 @@ import { Expense, ExpenseDocument, Attachment } from './schemas/expense.schema';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
+import { CategoriesService } from '../categories/categories.service';
 
 export const TRASH_RETENTION_DAYS = 30;
+
+interface PopulatedPaymentMethod {
+  _id: Types.ObjectId;
+  name: string;
+}
+
+interface PopulatedCategory {
+  _id: Types.ObjectId;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+interface ExpenseListItem {
+  id: string;
+  amount: number;
+  title: string;
+  category: { id: string; name: string; color: string; icon: string } | null;
+  date: Date;
+  paymentMethod: { id: string; name: string } | null;
+}
+
+interface ExpenseGroup {
+  date: string;
+  total: number;
+  count: number;
+  expenses: ExpenseListItem[];
+}
+
+export interface ExpenseListView {
+  total: number;
+  count: number;
+  groups: ExpenseGroup[];
+}
 
 @Injectable()
 export class ExpensesService {
   constructor(
     @InjectModel(Expense.name)
     private readonly expenseModel: Model<ExpenseDocument>,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
-  create(dto: CreateExpenseDto): Promise<Expense> {
+  async create(dto: CreateExpenseDto): Promise<Expense> {
+    await this.categoriesService.validateForExpense(
+      dto.userId,
+      dto.categoryId,
+      dto.subCategoryId,
+    );
     return this.expenseModel.create({
       ...dto,
       date: dto.date ? new Date(dto.date) : new Date(),
-      category: dto.category?.trim() || 'Uncategorized',
     });
   }
 
-  async findAll(query: QueryExpenseDto): Promise<Expense[]> {
+  private buildFilter(query: QueryExpenseDto): QueryFilter<ExpenseDocument> {
     const filter: QueryFilter<ExpenseDocument> = {
       userId: query.userId,
       isDeleted: false,
     };
 
-    if (query.category) {
-      filter.category = query.category;
+    if (query.categoryId) {
+      filter.categoryId = new Types.ObjectId(query.categoryId);
+    }
+    if (query.subCategoryId) {
+      filter.subCategoryId = new Types.ObjectId(query.subCategoryId);
     }
     if (query.tag) {
       filter.tags = query.tag;
@@ -44,7 +87,71 @@ export class ExpensesService {
       if (query.to) filter.date.$lte = new Date(query.to);
     }
 
+    return filter;
+  }
+
+  async findAll(query: QueryExpenseDto): Promise<Expense[]> {
+    const filter = this.buildFilter(query);
     return this.expenseModel.find(filter).sort({ date: -1 }).exec();
+  }
+
+  async getView(query: QueryExpenseDto): Promise<ExpenseListView> {
+    const filter = this.buildFilter(query);
+    const expenses = await this.expenseModel
+      .find(filter)
+      .sort({ date: -1 })
+      .populate<{ paymentMethodId: PopulatedPaymentMethod | null }>(
+        'paymentMethodId',
+        'name',
+      )
+      .populate<{ categoryId: PopulatedCategory | null }>(
+        'categoryId',
+        'name color icon',
+      )
+      .lean()
+      .exec();
+
+    const groups: ExpenseGroup[] = [];
+    const groupIndexByDate = new Map<string, number>();
+    let total = 0;
+
+    for (const expense of expenses) {
+      total += expense.amount;
+      const dateKey = new Date(expense.date).toISOString().slice(0, 10);
+
+      let groupIndex = groupIndexByDate.get(dateKey);
+      if (groupIndex === undefined) {
+        groupIndex = groups.length;
+        groupIndexByDate.set(dateKey, groupIndex);
+        groups.push({ date: dateKey, total: 0, count: 0, expenses: [] });
+      }
+
+      const group = groups[groupIndex];
+      group.total += expense.amount;
+      group.count += 1;
+      group.expenses.push({
+        id: expense._id.toString(),
+        amount: expense.amount,
+        title: expense.title,
+        category: expense.categoryId
+          ? {
+              id: expense.categoryId._id.toString(),
+              name: expense.categoryId.name,
+              color: expense.categoryId.color,
+              icon: expense.categoryId.icon,
+            }
+          : null,
+        date: expense.date,
+        paymentMethod: expense.paymentMethodId
+          ? {
+              id: expense.paymentMethodId._id.toString(),
+              name: expense.paymentMethodId.name,
+            }
+          : null,
+      });
+    }
+
+    return { total, count: expenses.length, groups };
   }
 
   async findOne(id: string, userId: string): Promise<ExpenseDocument> {
@@ -59,17 +166,44 @@ export class ExpensesService {
     return expense;
   }
 
+  async findOneDetailed(id: string, userId: string): Promise<Expense> {
+    const expense = await this.expenseModel
+      .findOne({ _id: id, userId, isDeleted: false })
+      .populate('paymentMethodId', 'name isActive')
+      .populate('categoryId', 'name color icon')
+      .exec();
+    if (!expense) {
+      throw new NotFoundException('Expense not found');
+    }
+    return expense;
+  }
+
   async update(
     id: string,
     userId: string,
     dto: UpdateExpenseDto,
   ): Promise<Expense> {
+    const existing = await this.findOne(id, userId);
+
+    if (dto.categoryId !== undefined || dto.subCategoryId !== undefined) {
+      const effectiveCategoryId =
+        dto.categoryId !== undefined
+          ? dto.categoryId
+          : (existing.categoryId?.toString() ?? null);
+      const effectiveSubCategoryId =
+        dto.subCategoryId !== undefined
+          ? dto.subCategoryId
+          : (existing.subCategoryId?.toString() ?? null);
+      await this.categoriesService.validateForExpense(
+        userId,
+        effectiveCategoryId,
+        effectiveSubCategoryId,
+      );
+    }
+
     const update: Partial<Expense> = { ...dto } as Partial<Expense>;
     if (dto.date) {
       update.date = new Date(dto.date) as unknown as Date;
-    }
-    if (dto.category !== undefined) {
-      update.category = dto.category.trim() || 'Uncategorized';
     }
 
     const expense = await this.expenseModel.findOneAndUpdate(

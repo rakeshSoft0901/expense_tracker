@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ExpensesModule } from './expenses/expenses.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
     }),
     ScheduleModule.forRoot(),
     PaymentMethodsModule,
+    CategoriesModule,
     ExpensesModule,
   ],
   controllers: [AppController],

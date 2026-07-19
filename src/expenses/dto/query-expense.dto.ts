@@ -12,8 +12,12 @@ export class QueryExpenseDto {
   userId: string;
 
   @IsOptional()
-  @IsString()
-  category?: string;
+  @IsMongoId()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  subCategoryId?: string;
 
   @IsOptional()
   @IsString()

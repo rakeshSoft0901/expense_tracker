@@ -44,6 +44,11 @@ export class ExpensesController {
     return this.expensesService.findAll(query);
   }
 
+  @Get('view')
+  getView(@Query() query: QueryExpenseDto) {
+    return this.expensesService.getView(query);
+  }
+
   @Get('trash')
   findDeleted(@Query('userId') userId: string) {
     return this.expensesService.findDeleted(userId);
@@ -62,7 +67,7 @@ export class ExpensesController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Query('userId') userId: string) {
-    return this.expensesService.findOne(id, userId);
+    return this.expensesService.findOneDetailed(id, userId);
   }
 
   @Patch(':id')

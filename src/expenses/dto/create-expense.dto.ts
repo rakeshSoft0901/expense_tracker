@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateExpenseDto {
@@ -30,12 +31,14 @@ export class CreateExpenseDto {
   title: string;
 
   @IsOptional()
-  @IsString()
-  category?: string;
+  @ValidateIf((o: CreateExpenseDto) => o.categoryId !== null)
+  @IsMongoId()
+  categoryId?: string | null;
 
   @IsOptional()
-  @IsString()
-  subCategory?: string;
+  @ValidateIf((o: CreateExpenseDto) => o.subCategoryId !== null)
+  @IsMongoId()
+  subCategoryId?: string | null;
 
   @IsOptional()
   @IsMongoId()
