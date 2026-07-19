@@ -56,10 +56,7 @@ export class ExpensesController {
 
   @Delete('trash/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  permanentlyDelete(
-    @Param('id') id: string,
-    @Query('userId') userId: string,
-  ) {
+  permanentlyDelete(@Param('id') id: string, @Query('userId') userId: string) {
     return this.expensesService.permanentlyDelete(id, userId);
   }
 
