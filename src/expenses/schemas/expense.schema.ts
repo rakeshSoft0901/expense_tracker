@@ -50,7 +50,7 @@ export class Expense {
   notes?: string;
 
   @Prop({ type: [AttachmentSchema], default: [] })
-  attachments: Attachment[];
+  attachments?: Attachment[];
 
   @Prop({ type: [String], default: [] })
   tags: string[];
@@ -58,7 +58,7 @@ export class Expense {
   @Prop({ default: false, index: true })
   isDeleted: boolean;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt: Date | null;
 }
 
